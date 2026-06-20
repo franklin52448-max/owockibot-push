@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multi-Chain Treasury Tracker</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0b0e; color: #e1e5ea; min-height: 100vh; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    
+    .header { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid #1e2026; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .header h1 { font-size: 1.5rem; font-weight: 700; }
+    .header h1 span { color: #5865f2; }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .last-updated { font-size: 0.75rem; color: #72767d; }
+    .refresh-btn { background: #5865f2; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: background 0.2s; }
+    .refresh-btn:hover { background: #4752c4; }
+    .refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    .total-value { background: linear-gradient(135deg, #1a1b26 0%, #1e1f2b 100%); border: 1px solid #2a2b36; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+    .total-value .label { font-size: 0.85rem; color: #72767d; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    .total-value .value { font-size: 2.5rem; font-weight: 700; color: #fff; }
+    .total-value .wallet { font-size: 0.75rem; color: #5865f2; margin-top: 8px; word-break: break-all; }
+    
+    .chain-filters { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+    .chain-filter-btn { padding: 8px 16px; border-radius: 8px; border: 1px solid #2a2b36; background: #1a1b26; color: #72767d; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+    .chain-filter-btn:hover { border-color: #3a3b46; }
+    .chain-filter-btn.active { background: #5865f2; color: white; border-color: #5865f2; }
+    .chain-filter-btn .dot { width: 8px; height: 8px; border-radius: 50%; }
+    
+    .chain-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .chain-card { background: #1a1b26; border: 1px solid #2a2b36; border-radius: 12px; padding: 20px; transition: all 0.3s; }
+    .chain-card:hover { border-color: #3a3b46; transform: translateY(-2px); }
+    .chain-card .chain-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .chain-card .chain-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; font-weight: 700; }
+    .chain-card .chain-name { font-size: 1rem; font-weight: 600; }
+    .chain-card .balance { font-size: 1.4rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .chain-card .balance-usd { font-size: 0.9rem; color: #72767d; }
+    .chain-card .token-count { font-size: 0.75rem; color: #5865f2; margin-top: 8px; }
+    .chain-base .chain-icon { background: #0052ff20; color: #0052ff; }
+    .chain-ethereum .chain-icon { background: #627eea20; color: #627eea; }
+    .chain-optimism .chain-icon { background: #ff042020; color: #ff0420; }
+    .chain-arbitrum .chain-icon { background: #28a0f020; color: #28a0f0; }
+    
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+    
+    .panel { background: #1a1b26; border: 1px solid #2a2b36; border-radius: 12px; padding: 20px; }
+    .panel h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    
+    .token-table { width: 100%; }
+    .token-row { display: grid; grid-template-columns: 2fr 1fr 1fr 80px; padding: 10px 0; border-bottom: 1px solid #1e2026; align-items: center; }
+    .token-row:last-child { border-bottom: none; }
+    .token-name { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+    .token-chain-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; }
+    .badge-base { background: #0052ff20; color: #0052ff; }
+    .badge-ethereum { background: #627eea20; color: #627eea; }
+    .badge-optimism { background: #ff042020; color: #ff0420; }
+    .badge-arbitrum { background: #28a0f020; color: #28a0f0; }
+    .token-balance { text-align: right; font-variant-numeric: tabular-nums; }
+    .token-value { text-align: right; color: #72767d; font-variant-numeric: tabular-nums; }
+    
+    .tx-table { width: 100%; }
+    .tx-row { display: grid; grid-template-columns: 60px 80px 1fr 1fr 1fr; padding: 10px 0; border-bottom: 1px solid #1e2026; align-items: center; gap: 8px; }
+    .tx-row:last-child { border-bottom: none; }
+    .tx-type { font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; text-align: center; }
+    .tx-in { background: #00845620; color: #008456; }
+    .tx-out { background: #a11a2e20; color: #a11a2e; }
+    .tx-chain { font-size: 0.75rem; color: #72767d; }
+    .tx-hash { font-size: 0.8rem; color: #5865f2; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tx-hash:hover { text-decoration: underline; }
+    .tx-amount { text-align: right; font-variant-numeric: tabular-nums; font-size: 0.9rem; }
+    .tx-time { text-align: right; font-size: 0.75rem; color: #72767d; }
+    
+    .loading { display: flex; justify-content: center; padding: 40px; }
+    .spinner { width: 40px; height: 40px; border: 3px solid #2a2b36; border-top-color: #5865f2; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    
+    .no-data { color: #72767d; text-align: center; padding: 20px; font-size: 0.85rem; }
+    
+    .auto-refresh-indicator { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: #72767d; }
+    .pulse { width: 6px; height: 6px; border-radius: 50%; background: #008456; animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  </style>
+  <script type="module" crossorigin src="/assets/index-CUCCoyGR.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>⛓️ <span>Multi-Chain</span> Treasury Tracker</h1>
+      <div class="header-right">
+        <div class="auto-refresh-indicator"><div class="pulse"></div> Auto-refresh 60s</div>
+        <span class="last-updated" id="lastUpdated">Loading...</span>
+        <button class="refresh-btn" id="refreshBtn" onclick="refresh()">↻ Refresh</button>
+      </div>
+    </div>
+    
+    <div class="total-value">
+      <div class="label">Total Portfolio Value <span id="liveBadge" style="font-weight:600">⏳</span></div>
+      <div class="value" id="totalValue">$0.00</div>
+      <div class="wallet">Tracked: <span id="walletAddr">0x26B7805Dd8aEc26DA55fc8e0c659cf6822b740Be</span></div>
+    </div>
+    
+    <div class="chain-filters" id="chainFilters">
+      <button class="chain-filter-btn active" data-chain="all" onclick="toggleChain('all')">All Chains</button>
+      <button class="chain-filter-btn" data-chain="base" onclick="toggleChain('base')"><span class="dot" style="background:#0052ff"></span> Base</button>
+      <button class="chain-filter-btn" data-chain="ethereum" onclick="toggleChain('ethereum')"><span class="dot" style="background:#627eea"></span> Ethereum</button>
+      <button class="chain-filter-btn" data-chain="optimism" onclick="toggleChain('optimism')"><span class="dot" style="background:#ff0420"></span> Optimism</button>
+      <button class="chain-filter-btn" data-chain="arbitrum" onclick="toggleChain('arbitrum')"><span class="dot" style="background:#28a0f0"></span> Arbitrum</button>
+    </div>
+    
+    <div class="chain-cards" id="chainCards">
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+    
+    <div class="two-col">
+      <div class="panel">
+        <h2>🪙 Token Holdings</h2>
+        <div class="token-table" id="tokenTable">
+          <div class="loading"><div class="spinner"></div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>📜 Recent Transactions</h2>
+        <div class="tx-table" id="txTable">
+          <div class="loading"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
